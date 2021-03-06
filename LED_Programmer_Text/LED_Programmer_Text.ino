@@ -1,4 +1,17 @@
 
+// Modification of Ben Eater's Display EEPROM program to allow a string of text to be displayed using the alternative character set.
+// Tie A10 (pin 19) high on the 28C16 EEPROM on the CPU.
+// 
+// Sample code to display. Adjust the clock speed to get the desired scroll rate.
+//
+// 0:   LDI     0
+// 1:   OUT
+// 2:   ADD     4
+// 3:   JMP     1
+// 4:   1
+
+
+
 #define SHIFT_DATA 2
 #define SHIFT_CLK 3
 #define SHIFT_LATCH 4
@@ -59,15 +72,6 @@ void printContents() {
   }
 }
 
-// Convert ascii to LED
-byte convert(byte b) {
-  byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b };
-  byte letters[] = { 0x77, 0x1f, 0x4e, 0x3d, 0x4f, 0x47, 0x7b, 0x37, 0x30, 0x3c, 0x37, 0x0e, 0x55, 0x15, 0x7e, 0x67, 0x73, 0x05, 0x5b, 0x0f, 0x3e, 0x27, 0x3f, 0x25, 0x3b, 0x6d };
-  if (b >= 48 && b <= 57) return digits[b - 48]; //digit
-  if (b >= 65 && b <= 90) return letters[b - 65]; //letter
-  return 0; // space
-}
-
 // Erase entire EEPROM
 void eraseEEPROM() {
   Serial.print("Erasing EEPROM");
@@ -87,7 +91,6 @@ void eraseEEPROM() {
 void setup() {
   // put your setup code here, to run once:
 
-
   pinMode(SHIFT_DATA, OUTPUT);
   pinMode(SHIFT_CLK, OUTPUT);
   pinMode(SHIFT_LATCH, OUTPUT);
@@ -96,21 +99,38 @@ void setup() {
 
   Serial.begin(57600);
 
-  //eraseEEPROM();
+  // eraseEEPROM();
 
-  String message = "    HELLO WORLD    8 BIT IS ALIVE       ALL YOUR BASE ARE BELONG TO US       IM SORRY DAVE IM AFRAID I CANT DO THAT       HUGE APPRECIATION AND CREDIT TO BEN EATER          ";
+  // Put your message here. Max 256 bytes. Only uppercase letters and digits will be converted. Remember to pad with at least 4 spaces at start and end if you want message to scroll on and off the display
+  // You can store several messages and start/stop at any character to display them
+
+  String message = "       HELLO WORLD           ";
+
   int len = message.length();
 
-  byte msgbytes[len];
-  byte ledbytes[len];
+  byte msgbytes[len];   //Byte array holding the message in ASCII
+  byte ledbytes[len];   //Byte array holding the message in LED code
   message.getBytes(msgbytes, len);
+ 
+  byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b };
+  byte letters[] = { 0x77, 0x1f, 0x4e, 0x3d, 0x4f, 0x47, 0x7b, 0x37, 0x30, 0x3c, 0x37, 0x0e, 0x55, 0x15, 0x7e, 0x67, 0x73, 0x05, 0x5b, 0x0f, 0x3e, 0x27, 0x3f, 0x25, 0x3b, 0x6d };
 
+ // Convert ASCII to LED codes
   for (int i = 0; i < len; i += 1) {
-    ledbytes[i] = convert(msgbytes[i]);
+    byte b = msgbytes[i];
+    if (b >= 48 && b <= 57) {
+      ledbytes[i] = digits[b - 48]; //digit
+    } 
+    else if (b >= 65 && b <= 90) {
+      ledbytes[i] = letters[b - 65]; //letter
+    }
+    else {
+      ledbytes[i] = 0 ; //everything else is a space
+    }
   }
 
+
   Serial.print("Programming EEPROM...");
-  byte digits[] = { 0x7e, 0x30, 0x6d, 0x79, 0x33, 0x5b, 0x5f, 0x70, 0x7f, 0x7b };
 
   for (int value = 0; value <= 255; value += 1) {
     writeEEPROM(value, digits[value % 10]) ;
@@ -119,9 +139,9 @@ void setup() {
     writeEEPROM(value + 768, 0);
   }
 
-  //write message
+  //write message into top 1024 bytes of EEPROM
 
-  for (int value = 0; value < len; value += 1) {
+  for (int value = 0; value <= len - 3; value += 1) {
     writeEEPROM(value + 1024, ledbytes[value + 3] );
     writeEEPROM(value + 1024 + 256, ledbytes[value + 2] );
     writeEEPROM(value + 1024 + 512, ledbytes[value + 1] );
@@ -133,8 +153,6 @@ void setup() {
   printContents();
 
 }
-
-
 
 void loop() {
   // put your main code here, to run repeatedly:
